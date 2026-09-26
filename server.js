@@ -196,3 +196,66 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur MboaNkap démarré sur le port ${PORT}`);
 });
+// ========================================
+// ROUTE : ENVOYER DE L'ARGENT (P2P)
+// ========================================
+app.post('/api/envoyer', async (req, res) => {
+  try {
+    const {
+      telephoneEnvoyeur,
+      telephoneDestinataire,
+      montant,
+      motif,
+    } = req.body;
+
+    console.log('🚀 Envoi P2P:', {
+      de: telephoneEnvoyeur,
+      vers: telephoneDestinataire,
+      montant,
+    });
+
+    // 1. Appeler Campy pour le transfert
+    const campyResponse = await axios.post(
+      `${CAMPY_BASE_URL}/transfer/`,
+      {
+        amount: montant.toString(),
+        currency: 'XAF',
+        to: telephoneDestinataire.replace('+237', '237'),
+        description: motif || 'Transfert MboaNkap',
+        external_reference: `TRF_${Date.now()}`,
+      },
+      {
+        headers: {
+          'Authorization': `Token ${CAMPY_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('✅ Réponse Campy:', campyResponse.data);
+
+    // 2. Enregistrer la transaction
+    await db.collection('transactions').add({
+      type: 'envoi',
+      telephoneEnvoyeur,
+      telephoneDestinataire,
+      montant: parseFloat(montant),
+      motif: motif || 'Transfert',
+      reference: campyResponse.data.reference,
+      statut: 'en_attente',
+      dateCreation: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      reference: campyResponse.data.reference,
+      message: 'Transfert initié. Vérifiez votre téléphone.',
+    });
+  } catch (error) {
+    console.error('❌ Erreur envoi:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.message || error.message,
+    });
+  }
+});
