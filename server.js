@@ -196,6 +196,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur MboaNkap démarré sur le port ${PORT}`);
 });
+
 // ========================================
 // ROUTE : ENVOYER DE L'ARGENT (P2P)
 // ========================================
@@ -255,6 +256,11 @@ app.post('/api/envoyer', async (req, res) => {
     console.error('❌ Erreur envoi:', error.response?.data || error.message);
     res.status(500).json({
       success: false,
+      error: error.response?.data?.message || error.message,
+    });
+  }
+});
+   
       error: error.response?.data?.message || error.message,
     });
   }
