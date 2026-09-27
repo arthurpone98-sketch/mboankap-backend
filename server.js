@@ -255,3 +255,64 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur MboaNkap démarré sur le port ${PORT}`);
 });
+// ========================================
+// ROUTE : PAYER UN MARCHAND
+// ========================================
+app.post('/api/payer-marchand', async (req, res) => {
+  try {
+    const {
+      telephoneClient,
+      telephoneMarchand,
+      montant,
+      description,
+    } = req.body;
+
+    console.log('🚀 Paiement marchand:', {
+      client: telephoneClient,
+      marchand: telephoneMarchand,
+      montant,
+    });
+
+    const campyResponse = await axios.post(
+      `${CAMPY_BASE_URL}/collect/`,
+      {
+        amount: montant.toString(),
+        currency: 'XAF',
+        from: telephoneClient,
+        description: description || 'Paiement marchand',
+        external_reference: `PM_${Date.now()}`,
+      },
+      {
+        headers: {
+          'Authorization': `Token ${CAMPY_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('✅ Réponse Campy:', campyResponse.data);
+
+    await db.collection('transactions').add({
+      type: 'paiement_marchand',
+      telephoneClient,
+      telephoneMarchand,
+      montant: parseFloat(montant),
+      description: description || 'Paiement',
+      reference: campyResponse.data.reference,
+      statut: 'en_attente',
+      dateCreation: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      reference: campyResponse.data.reference,
+      message: 'Paiement initié. Vérifiez votre téléphone.',
+    });
+  } catch (error) {
+    console.error('❌ Erreur paiement:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.message || error.message,
+    });
+  }
+});
